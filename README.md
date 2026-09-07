@@ -49,6 +49,8 @@ The following appliances are currently supported in rethink:
 - Stylers:
     - 👍 S5BBP (ST_B_E4H01Y_APL), Styler - mostly working
     - 👍 S5MPC, Styler - course start / reserve / smart courses, remote-start state, error state, smart-diagnosis state, plus Power off
+- Water Purifiers:
+    - 🫤 WD722RH (1WPD6CMIDR\_\_3), LG PuriCare IX 2nd Water Purifier - preliminary support; ice lock, ice-only lever, ice-first mode, hot water lock, cold water enable, default hot water temperature, display and sound settings, default dispense presets and lever type are controllable
 
 The supported appliances can be used "out of the box" with HomeAssistant or another compatible MQTT consumer.  
 Appliances not listed above can still be used with the bridge mode, but they will not be translated to MQTT. Contributions are welcome!
