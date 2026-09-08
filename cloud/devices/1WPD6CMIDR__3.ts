@@ -9,11 +9,11 @@ import AABBDevice from './aabb_device'
 //
 // Passive by default: state is decoded without polling. Writes are exposed for every
 // setting whose exact TX frame was captured from the ThinQ app: ice lock, ice-only lever,
-// ice-first mode, hot water lock, cold water enable, display brightness, time format,
-// display mode (always-on / waiting-screen clock / off), display dimming and off timers,
-// product sound, voice volume, button sound, voice guidance, default water type, default
-// water amount preset and lever dispensing type. Dispensing, sterilisation, ice maker and
-// any other unverified command remain state-only.
+// ice-first mode, hot water lock, cold water enable, do-not-disturb, display brightness,
+// time format, display mode (always-on / waiting-screen clock / off), display dimming and
+// off timers, product sound, voice volume, button sound, voice guidance, default water
+// type, default water amount preset and lever dispensing type. Dispensing, sterilisation,
+// ice maker and any other unverified command remain state-only.
 //
 // Every settable field lives in a 145-byte sparse config payload (0xF0 0x17 header
 // followed by 0xFF filler). The appliance echoes the write into the 270-byte config
@@ -84,6 +84,10 @@ const CONFIG = {
     displayBrightness: 252,
     timeFormat: 253,
     defaultHotWaterTemp: 229,
+    dndMode: 222,
+    dndIceMode: 264,
+    dndStartHour: 223,
+    dndEndHour: 225,
 } as const
 
 /** MonitoringValue.defaultWaterSet. */
@@ -313,6 +317,26 @@ export default class Device extends AABBDevice {
                         icon: 'mdi:snowflake',
                         entity_category: 'config',
                     }),
+                    dnd_mode: controlSwitch('dnd_mode', 'Do not disturb', {
+                        icon: 'mdi:volume-off',
+                        entity_category: 'config',
+                    }),
+                    dnd_ice_mode: controlSwitch('dnd_ice_mode', 'Ice making during do not disturb', {
+                        icon: 'mdi:snowflake-alert',
+                        entity_category: 'config',
+                    }),
+                    dnd_start_hour: controlNumber(
+                        'dnd_start_hour',
+                        'Do not disturb start hour (UTC)',
+                        { min: 0, max: 23 },
+                        { icon: 'mdi:clock-start', entity_category: 'config' },
+                    ),
+                    dnd_end_hour: controlNumber(
+                        'dnd_end_hour',
+                        'Do not disturb end hour (UTC)',
+                        { min: 0, max: 23 },
+                        { icon: 'mdi:clock-end', entity_category: 'config' },
+                    ),
                     ice_maker: binarySensor('ice_maker', 'Ice maker', {
                         icon: 'mdi:snowflake-variant',
                         entity_category: 'diagnostic',
@@ -401,6 +425,14 @@ export default class Device extends AABBDevice {
             case 'button_sound':
             case 'voice_guidance':
                 return this.setBooleanProperty(prop, mqttValue)
+            case 'dnd_mode':
+                return this.setDndMode(mqttValue)
+            case 'dnd_ice_mode':
+                return this.setDndIceMode(mqttValue)
+            case 'dnd_start_hour':
+                return this.setDndHour(CONFIG.dndStartHour - 137, mqttValue)
+            case 'dnd_end_hour':
+                return this.setDndHour(CONFIG.dndEndHour - 137, mqttValue)
             case 'display_brightness':
                 return this.setBrightness(mqttValue)
             case 'time_format':
@@ -456,6 +488,30 @@ export default class Device extends AABBDevice {
     private setVolume(mqttValue: string) {
         if (!VOICE_VOLUME_OPTIONS.includes(mqttValue)) return
         this.send(configCommandRaw(16, Number(mqttValue)))
+    }
+
+    /** Do not disturb: captured write offset is the settled offset (222) minus 137. */
+    private setDndMode(mqttValue: string) {
+        if (mqttValue !== 'ON' && mqttValue !== 'OFF') return
+        this.send(configCommandRaw(CONFIG.dndMode - 137, mqttValue === 'ON' ? 1 : 0))
+    }
+
+    /** Ice making during DND: captured write offset is the settled offset (264) minus 137. */
+    private setDndIceMode(mqttValue: string) {
+        if (mqttValue !== 'ON' && mqttValue !== 'OFF') return
+        this.send(configCommandRaw(CONFIG.dndIceMode - 137, mqttValue === 'ON' ? 1 : 0))
+    }
+
+    /**
+     * DND start/end hour. Captured live: the panel shows KST but the wire carries the
+     * hour in UTC (raw = (KST hour - 9) mod 24, confirmed against both the start-hour
+     * and end-hour fields across two independent captures). HA gets the raw UTC hour
+     * rather than a hidden timezone conversion baked into the driver.
+     */
+    private setDndHour(offset: number, mqttValue: string) {
+        const hour = Number(mqttValue)
+        if (!Number.isInteger(hour) || hour < 0 || hour > 23) return
+        this.send(configCommandRaw(offset, hour))
     }
 
     private setTimeFormat(mqttValue: string) {
@@ -550,6 +606,10 @@ export default class Device extends AABBDevice {
         this.publishFlag('ice_lever', buf[CONFIG.iceLever] === 1)
         this.publishFlag('child_lock', buf[CONFIG.deviceLock] === 1)
         this.publishFlag('cold_water_enabled', buf[CONFIG.coldWaterOnOff] === 1)
+        this.publishFlag('dnd_mode', buf[CONFIG.dndMode] === 1)
+        this.publishFlag('dnd_ice_mode', buf[CONFIG.dndIceMode] === 1)
+        this.publishProperty('dnd_start_hour', buf[CONFIG.dndStartHour])
+        this.publishProperty('dnd_end_hour', buf[CONFIG.dndEndHour])
         this.publishFlag('ice_maker', buf[CONFIG.iceMaker] === 1)
         this.publishFlag('ice_first_mode', buf[CONFIG.iceFirstMode] === 1)
         this.publishFlag('product_sound', buf[CONFIG.productSoundOnOff] === 1)
