@@ -29,6 +29,7 @@ import ST_B_E4H01Y_APL from './devices/ST_B_E4H01Y_APL'
 import F24VDD from './devices/F24VDD'
 import S5MPC from './devices/S5MPC'
 import Dev_1WPD6CMIDR__3 from './devices/1WPD6CMIDR__3'
+import RH16_T_KR from './devices/RH16_T_KR'
 import { Device as T1Device } from './thinq1/device'
 import { Device as T2Device } from './thinq2/device'
 import { type Connection } from './homeassistant'
@@ -82,6 +83,7 @@ const t2deviceTypes: Record<string, T2Factory> = {
     F24VDD,
     S5MPC,
     ['1WPD6CMIDR__3']: Dev_1WPD6CMIDR__3, // LG water purifier
+    RH16_T_KR,
 }
 
 class Bridge {
